@@ -202,6 +202,18 @@ body {
     </div>
   </div>
 
+  <!-- 手动输入 buyer_id（临时快速测试用，后续接入 OAuth 后可去掉） -->
+  <div class="buyerid-section" style="margin: 0 16px 12px; text-align: left;">
+    <div class="subject-label" style="cursor:pointer; display:flex; align-items:center; gap:4px;" onclick="toggleBuyerId()">
+      <span id="buyerIdArrow" style="display:inline-block; transition: transform 0.2s; font-size:12px;">▶</span>
+      手动输入支付宝用户ID（测试用）
+    </div>
+    <div id="buyerIdWrap" style="display:none; margin-top:6px;">
+      <input type="text" id="buyerIdInput" placeholder="2088开头的支付宝用户ID" style="width:100%; padding:10px 14px; border:1px solid rgba(212,175,55,.35); border-radius:8px; background:rgba(212,175,55,.06); color:#d4af37; font-size:15px; outline:none; box-sizing:border-box;">
+      <p style="font-size:11px; color:#888; margin:4px 0 0;">支付宝App内→我的→头像→个人主页可查看</p>
+    </div>
+  </div>
+
   <button class="pay-btn" id="payBtn" onclick="handlePay()">支 付</button>
   <p class="pay-hint">仅支持支付宝 App 内打开</p>
 
@@ -215,6 +227,18 @@ body {
 
 let currentOrder = null;
 let pollingTimer = null;
+
+function toggleBuyerId() {
+  const wrap = document.getElementById('buyerIdWrap');
+  const arrow = document.getElementById('buyerIdArrow');
+  if (wrap.style.display === 'none') {
+    wrap.style.display = 'block';
+    arrow.style.transform = 'rotate(90deg)';
+  } else {
+    wrap.style.display = 'none';
+    arrow.style.transform = 'rotate(0deg)';
+  }
+}
 
 /**
  * 检测是否在支付宝 App 内
@@ -279,27 +303,38 @@ async function handlePay() {
   btn.disabled = true;
   hideStatus();
 
+  // 检查是否有手动输入的 buyer_id（快速测试用）
+  const manualBuyerId = document.getElementById('buyerIdInput').value.trim();
+
   try {
-    // Step 1: 获取支付宝授权码
-    btn.textContent = '获取授权中...';
-    let authCode;
-    try {
-      authCode = await getAlipayAuthCode();
-      console.log('>>> 获取到 authCode:', authCode);
-    } catch (err) {
-      console.warn('>>> 获取授权码失败:', err.message);
-      showStatus(err.message || '获取支付宝授权失败', 'error');
-      btn.disabled = false;
-      btn.textContent = '支 付';
-      return;
+    let requestBody = { amount, subject };
+
+    if (manualBuyerId) {
+      // 手动输入了 buyer_id，跳过 OAuth 直接创建交易
+      btn.textContent = '创建订单中...';
+      requestBody.buyer_id = manualBuyerId;
+    } else {
+      // 自动获取授权码
+      btn.textContent = '获取授权中...';
+      let authCode;
+      try {
+        authCode = await getAlipayAuthCode();
+        console.log('>>> 获取到 authCode:', authCode);
+      } catch (err) {
+        console.warn('>>> 获取授权码失败:', err.message);
+        showStatus(err.message || '获取支付宝授权失败（可尝试展开上方手动输入用户ID）', 'error');
+        btn.disabled = false;
+        btn.textContent = '支 付';
+        return;
+      }
+      btn.textContent = '创建订单中...';
+      requestBody.auth_code = authCode;
     }
 
-    // Step 2: 创建 JSAPI 交易订单（传入 auth_code，后端换取 user_id）
-    btn.textContent = '创建订单中...';
     const resp = await fetch('/cashier/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, subject, auth_code: authCode }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await resp.json();

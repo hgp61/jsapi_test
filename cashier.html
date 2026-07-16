@@ -239,7 +239,7 @@ function getAlipayAuthCode() {
 
     ready(function() {
       try {
-        AlipayJSBridge.call('getAuthCode', { scopes: 'auth_user' }, function(result) {
+        AlipayJSBridge.call('getAuthCode', { scopes: ['auth_base'] }, function(result) {
           console.log('>>> getAuthCode 结果:', JSON.stringify(result));
           if (result && result.authCode) {
             resolve(result.authCode);

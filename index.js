@@ -220,7 +220,7 @@ app.post('/cashier/create', express.json(), async (req, res) => {
         || oauthResult;
       console.log('>>> [OAuth] 解析后的响应:', JSON.stringify(oauthResp));
 
-      resolvedBuyerId = oauthResp.userId || oauthResp.user_id || oauthResp.alipay_user_id || oauthResp.alipayUserId;
+      resolvedBuyerId = oauthResp.userId || oauthResp.user_id || oauthResp.alipay_user_id || oauthResp.alipayUserId || oauthResp.openId || oauthResp.openid;
       console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}`);
     } catch (err) {
       console.error('>>> [OAuth] 换取 user_id 失败:', err.message);

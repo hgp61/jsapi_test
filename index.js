@@ -203,19 +203,28 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
   // 获取 buyer_id（优先用传入的，否则用 auth_code 换）
   let resolvedBuyerId = buyerId;
+  let oauthDebug = null;
   if (!resolvedBuyerId && authCode) {
     try {
       console.log(`>>> [OAuth] 用 authCode 换取 user_id: ${authCode}`);
       const oauthResult = await getAlipaySdk().exec('alipay.system.oauth.token', {
-        grantType: 'authorization_code',
+        grant_type: 'authorization_code',
         code: authCode,
       });
-      const oauthResp = oauthResult.alipay_system_oauth_token_response || oauthResult.alipaySystemOauthTokenResponse || oauthResult;
-      resolvedBuyerId = oauthResp.userId || oauthResp.user_id;
-      console.log(`>>> [OAuth] 换取成功: user_id=${resolvedBuyerId}, code=${oauthResp.code}, msg=${oauthResp.msg}`);
+      oauthDebug = JSON.stringify(oauthResult);
+      console.log('>>> [OAuth] 原始响应:', oauthDebug);
+
+      const oauthResp = oauthResult.alipay_system_oauth_token_response
+        || oauthResult.alipaySystemOauthTokenResponse
+        || oauthResult.response
+        || oauthResult;
+      console.log('>>> [OAuth] 解析后的响应:', JSON.stringify(oauthResp));
+
+      resolvedBuyerId = oauthResp.userId || oauthResp.user_id || oauthResp.alipay_user_id || oauthResp.alipayUserId;
+      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}`);
     } catch (err) {
       console.error('>>> [OAuth] 换取 user_id 失败:', err.message);
-      return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message });
+      return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message, debug: oauthDebug });
     }
   }
 
@@ -223,6 +232,7 @@ app.post('/cashier/create', express.json(), async (req, res) => {
     return res.status(400).json({
       code: 'NO_BUYER_ID',
       message: '缺少 buyer_id（请在支付宝 App 中打开并授权）',
+      debug: { oauthResult: oauthDebug },
     });
   }
 

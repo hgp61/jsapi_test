@@ -67,6 +67,10 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAubDn2gdgvtZLrV6bogJgoW+04xKBPfmqXcoq
 
     // 支付宝网关
     gateway: 'https://openapi.alipay.com/gateway.do',
+
+    // 卖家支付宝账号（2088 开头），留空则默认用当前应用所属账号收款
+    // 测试时可填其他账号避免"卖家买家账号相同"报错
+    sellerId: '',
   },
 
   // 商户名称
@@ -255,7 +259,12 @@ app.post('/cashier/create', express.json(), async (req, res) => {
       bizContent.buyer_open_id = resolvedBuyerId;
     }
 
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, buyer_open_id: ${bizContent.buyer_open_id || '无'}`);
+    // 如果配置了 sellerId，指定收款方（避免买家和卖家同一账号时无法测试）
+    if (CONFIG.alipay.sellerId) {
+      bizContent.seller_id = CONFIG.alipay.sellerId;
+    }
+
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, buyer_open_id: ${bizContent.buyer_open_id || '无'}, seller_id: ${bizContent.seller_id || '默认'}`);
 
     const result = await getAlipaySdk().exec('alipay.trade.create', { bizContent });
 

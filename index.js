@@ -249,15 +249,16 @@ app.post('/cashier/create', express.json(), async (req, res) => {
     // 优先用标准 buyer_id（2088 开头的 16 位），否则用 auth_token
     if (resolvedBuyerId && /^2088\d{12,16}$/.test(resolvedBuyerId)) {
       bizContent.buyer_id = resolvedBuyerId;
-    } else if (accessToken) {
-      bizContent.auth_token = accessToken;
     }
 
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${bizContent.auth_token ? '有' : '无'}`);
+    const execParams = { bizContent };
+    if (accessToken) {
+      execParams.auth_token = accessToken;
+    }
 
-    const result = await getAlipaySdk().exec('alipay.trade.create', {
-      bizContent,
-    });
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${execParams.auth_token ? '有' : '无'}`);
+
+    const result = await getAlipaySdk().exec('alipay.trade.create', execParams);
 
     const resp = result.alipay_trade_create_response || result;
     const tradeNo = resp.tradeNo || resp.trade_no;

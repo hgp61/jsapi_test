@@ -36,6 +36,10 @@ if (process.env.DATABASE_URL) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// 解析请求体（同时支持 JSON 和 form 数据）
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 // 静态文件服务
 app.use(express.static(__dirname));
 
@@ -174,6 +178,10 @@ app.post('/cashier/create', express.json(), async (req, res) => {
   const body = String(req.body.body || subject).trim();
   const buyerId = String(req.body.buyer_id || '').trim();
   const authCode = String(req.body.auth_code || '').trim();
+
+  // 调试日志：打印收到的请求体
+  console.log('>>> [DEBUG] /cashier/create 收到请求体:', JSON.stringify(req.body));
+  console.log('>>> [DEBUG] 解析到的 auth_code:', authCode, ' buyer_id:', buyerId, ' amount:', amount);
 
   if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
     return res.status(400).json({ code: 'ERROR', message: '请输入有效金额' });

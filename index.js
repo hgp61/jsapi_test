@@ -390,6 +390,19 @@ app.post('/cashier/notify', express.urlencoded({ extended: false }), async (req,
 // ======================== 【管理后台 API】 ========================
 
 /**
+ * GET /api/config — 获取商户配置（品牌名、限额等）
+ */
+app.get('/api/config', (req, res) => {
+  res.json({
+    code: 'OK',
+    data: {
+      merchantName: CONFIG.merchantName || 'JSAPI 收银台',
+      enabled: true,
+    },
+  });
+});
+
+/**
  * GET /api/orders — 获取所有订单
  */
 app.get('/api/orders', (req, res) => {

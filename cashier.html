@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>JSAPI 收银台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #070707;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+.container {
+  width: 100%;
+  max-width: 420px;
+  background: #0d0d0d;
+  border-radius: 16px;
+  padding: 32px 24px;
+  box-shadow: 0 4px 24px rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+}
+.logo-area {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.logo-area img {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.logo-area h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #d4af37;
+  letter-spacing: 2px;
+}
+.logo-area .subtitle {
+  font-size: 13px;
+  color: rgba(212, 175, 55, 0.6);
+  margin-top: 4px;
+}
+.amount-section {
+  margin-bottom: 24px;
+}
+.amount-label {
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 8px;
+}
+.amount-input-wrap {
+  display: flex;
+  align-items: center;
+  background: #1a1a1a;
+  border: 2px solid rgba(212, 175, 55, 0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: border-color 0.3s;
+}
+.amount-input-wrap:focus-within {
+  border-color: #d4af37;
+}
+.currency {
+  font-size: 24px;
+  font-weight: 700;
+  color: #d4af37;
+  margin-right: 8px;
+}
+.amount-input-wrap input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 600;
+  width: 100%;
+}
+.amount-input-wrap input::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+.subject-section {
+  margin-bottom: 24px;
+}
+.subject-label {
+  font-size: 14px;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 8px;
+}
+.subject-input-wrap {
+  background: #1a1a1a;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+.subject-input-wrap input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 16px;
+}
+.subject-input-wrap input::placeholder {
+  color: rgba(255,255,255,0.2);
+}
+.pay-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #070707;
+  background: linear-gradient(135deg, #d4af37, #f0d060);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: all 0.3s;
+  margin-bottom: 12px;
+}
+.pay-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.3);
+}
+.pay-btn:active {
+  transform: scale(0.98);
+}
+.pay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.pay-hint {
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.3);
+}
+.status-area {
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #1a1a1a;
+  display: none;
+}
+.status-area.show { display: block; }
+.status-area .status-text {
+  font-size: 14px;
+  text-align: center;
+  color: rgba(255,255,255,0.7);
+}
+.status-area.success {
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+.status-area.success .status-text { color: #d4af37; }
+.status-area.error {
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.3);
+}
+.status-area.error .status-text { color: #ff4d4f; }
+.loading-dots { display: inline-block; }
+.loading-dots::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+  100% { content: ''; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo-area">
+    <img src="logo-pay.png" alt="Logo" onerror="this.style.display='none'">
+    <h1>收 银 台</h1>
+    <p class="subtitle">支付宝 JSAPI 支付</p>
+  </div>
+
+  <div class="amount-section">
+    <div class="amount-label">收款金额</div>
+    <div class="amount-input-wrap">
+      <span class="currency">¥</span>
+      <input type="text" id="amountInput" placeholder="0.00" inputmode="decimal" autofocus>
+    </div>
+  </div>
+
+  <div class="subject-section">
+    <div class="subject-label">商品说明</div>
+    <div class="subject-input-wrap">
+      <input type="text" id="subjectInput" placeholder="商品或服务名称" value="商品购买">
+    </div>
+  </div>
+
+  <button class="pay-btn" id="payBtn" onclick="handlePay()">支 付</button>
+  <p class="pay-hint">基于支付宝 JSAPI 支付</p>
+
+  <div class="status-area" id="statusArea">
+    <p class="status-text" id="statusText"></p>
+  </div>
+</div>
+
+<script>
+// ======================== 支付流程 ========================
+
+let currentOrder = null;
+let pollingTimer = null;
+
+/**
+ * 检测是否在支付宝 App 内
+ */
+function isAlipayApp() {
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.indexOf('alipayclient') !== -1 || ua.indexOf('alipay') !== -1;
+}
+
+/**
+ * 发起支付
+ */
+async function handlePay() {
+  const amount = document.getElementById('amountInput').value.trim();
+  const subject = document.getElementById('subjectInput').value.trim() || '商品购买';
+
+  // 校验金额
+  if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+    showStatus('请输入有效金额', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = '创建订单中...';
+  hideStatus();
+
+  try {
+    // Step 1: 创建 JSAPI 交易订单
+    const resp = await fetch('/cashier/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, subject }),
+    });
+
+    const data = await resp.json();
+
+    if (data.code !== 'OK') {
+      showStatus(data.message || '创建订单失败', 'error');
+      btn.disabled = false;
+      btn.textContent = '支 付';
+      return;
+    }
+
+    currentOrder = data;
+    console.log('>>> 交易已创建:', currentOrder);
+
+    // Step 2: 根据环境选择支付方式
+    if (isAlipayApp()) {
+      // 支付宝 App 内 → 使用 JSAPI 原生支付
+      btn.textContent = '唤起支付中...';
+      await payViaJSAPI(currentOrder.trade_no);
+    } else {
+      // 普通浏览器 → 跳转支付宝收银台
+      btn.textContent = '跳转支付页面...';
+      payViaBrowser(currentOrder.out_trade_no);
+    }
+
+  } catch (err) {
+    console.error('支付异常:', err);
+    showStatus('支付服务异常: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '支 付';
+  }
+}
+
+/**
+ * JSAPI 原生支付（支付宝 App 内）
+ */
+async function payViaJSAPI(tradeNO) {
+  // 等待 AlipayJSBridge 就绪
+  function ready(callback) {
+    if (window.AlipayJSBridge) {
+      callback && callback();
+    } else {
+      document.addEventListener('AlipayJSBridgeReady', callback, false);
+    }
+  }
+
+  ready(function() {
+    AlipayJSBridge.call('tradePay', {
+      tradeNO: tradeNO,
+    }, function(result) {
+      console.log('>>> JSAPI 支付结果:', JSON.stringify(result));
+
+      const btn = document.getElementById('payBtn');
+
+      if (result.resultCode === '9000') {
+        // 支付成功
+        showStatus('支付成功！¥' + currentOrder.amount, 'success');
+        btn.textContent = '支付成功';
+        btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
+
+        // 确认订单状态
+        updateOrderStatus(currentOrder.out_trade_no);
+      } else if (result.resultCode === '8000') {
+        // 正在处理中，轮询确认
+        showStatus('支付处理中，请稍候...', '');
+        btn.textContent = '处理中...';
+        startPolling(currentOrder.out_trade_no);
+      } else if (result.resultCode === '6001') {
+        // 用户取消
+        showStatus('已取消支付', 'error');
+        btn.disabled = false;
+        btn.textContent = '支 付';
+      } else {
+        // 支付失败
+        showStatus('支付失败: ' + (result.memo || '未知错误'), 'error');
+        btn.disabled = false;
+        btn.textContent = '重 试';
+      }
+    });
+  });
+}
+
+/**
+ * 浏览器跳转支付（跳转支付宝收银台）
+ */
+function payViaBrowser(outTradeNo) {
+  // 跳转到后端生成的支付宝收银台页面
+  window.location.href = '/cashier/page-pay/' + outTradeNo;
+}
+
+/**
+ * 轮询查询支付状态
+ */
+function startPolling(outTradeNo) {
+  if (pollingTimer) clearInterval(pollingTimer);
+
+  let count = 0;
+  const maxCount = 60; // 最多轮询 2 分钟
+
+  pollingTimer = setInterval(async () => {
+    count++;
+    try {
+      const resp = await fetch('/cashier/check?out_trade_no=' + outTradeNo);
+      const data = await resp.json();
+
+      if (data.code === 'OK' && data.status === 'paid') {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+        showStatus('支付成功！¥' + currentOrder.amount, 'success');
+        const btn = document.getElementById('payBtn');
+        btn.textContent = '支付成功';
+        btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
+        btn.disabled = true;
+      }
+    } catch (err) {
+      console.error('轮询失败:', err);
+    }
+
+    if (count >= maxCount) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+      showStatus('支付超时，请确认是否已完成支付', 'error');
+      document.getElementById('payBtn').disabled = false;
+      document.getElementById('payBtn').textContent = '重 试';
+    }
+  }, 2000);
+}
+
+/**
+ * 更新订单状态（单次查询）
+ */
+async function updateOrderStatus(outTradeNo) {
+  try {
+    const resp = await fetch('/cashier/check?out_trade_no=' + outTradeNo);
+    const data = await resp.json();
+    if (data.code === 'OK' && data.status === 'paid') {
+      showStatus('支付成功！¥' + currentOrder.amount, 'success');
+      const btn = document.getElementById('payBtn');
+      btn.textContent = '支付成功';
+      btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
+      btn.disabled = true;
+    }
+  } catch (err) {}
+}
+
+/**
+ * 显示状态信息
+ */
+function showStatus(text, type) {
+  const area = document.getElementById('statusArea');
+  const txt = document.getElementById('statusText');
+  area.className = 'status-area show ' + (type || '');
+  txt.textContent = text;
+}
+
+function hideStatus() {
+  const area = document.getElementById('statusArea');
+  area.className = 'status-area';
+}
+
+// ======================== 页面初始化 ========================
+
+document.addEventListener('DOMContentLoaded', () => {
+  // 金额输入只允许数字和小数点
+  const amountInput = document.getElementById('amountInput');
+  amountInput.addEventListener('input', (e) => {
+    let val = e.target.value.replace(/[^\d.]/g, '');
+    // 只允许一个小数点
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+    // 最多两位小数
+    if (parts.length === 2 && parts[1].length > 2) {
+      val = parts[0] + '.' + parts[1].slice(0, 2);
+    }
+    e.target.value = val;
+  });
+
+  // 回车键触发支付
+  amountInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handlePay();
+  });
+
+  document.getElementById('subjectInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handlePay();
+  });
+
+  // 检测环境
+  if (isAlipayApp()) {
+    console.log('>>> 检测到支付宝 App 环境，将使用 JSAPI 原生支付');
+  } else {
+    console.log('>>> 浏览器环境，将使用跳转支付');
+  }
+});
+</script>
+
+</body>
+</html>

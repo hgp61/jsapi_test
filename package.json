@@ -1,0 +1,13 @@
+{
+  "name": "jsapi-cashier",
+  "version": "1.0.0",
+  "description": "JSAPI 收银台 - 支付宝 JSAPI 支付",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "alipay-sdk": "^3.3.4",
+    "express": "^4.18.2"
+  }
+}

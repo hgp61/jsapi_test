@@ -201,12 +201,13 @@ app.post('/cashier/create', express.json(), async (req, res) => {
   });
   await saveOrders();
 
-  // 获取 buyer_id（优先用传入的，否则用 auth_code 换）
+  // 获取 buyer_id 或 auth_token（优先用传入的，否则用 auth_code 换）
   let resolvedBuyerId = buyerId;
+  let accessToken = null;
   let oauthDebug = null;
   if (!resolvedBuyerId && authCode) {
     try {
-      console.log(`>>> [OAuth] 用 authCode 换取 user_id: ${authCode}`);
+      console.log(`>>> [OAuth] 用 authCode 换取 token: ${authCode}`);
       const oauthResult = await getAlipaySdk().exec('alipay.system.oauth.token', {
         grant_type: 'authorization_code',
         code: authCode,
@@ -221,14 +222,15 @@ app.post('/cashier/create', express.json(), async (req, res) => {
       console.log('>>> [OAuth] 解析后的响应:', JSON.stringify(oauthResp));
 
       resolvedBuyerId = oauthResp.userId || oauthResp.user_id || oauthResp.alipay_user_id || oauthResp.alipayUserId || oauthResp.openId || oauthResp.openid;
-      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}`);
+      accessToken = oauthResp.accessToken || oauthResp.access_token;
+      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}, accessToken: ${accessToken ? '有' : '无'}`);
     } catch (err) {
-      console.error('>>> [OAuth] 换取 user_id 失败:', err.message);
+      console.error('>>> [OAuth] 换取 token 失败:', err.message);
       return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message, debug: oauthDebug });
     }
   }
 
-  if (!resolvedBuyerId) {
+  if (!resolvedBuyerId && !accessToken) {
     return res.status(400).json({
       code: 'NO_BUYER_ID',
       message: '缺少 buyer_id（请在支付宝 App 中打开并授权）',
@@ -238,16 +240,23 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
   // 调用 alipay.trade.create
   try {
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer: ${resolvedBuyerId}`);
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${bizContent.auth_token ? '有' : '无'}`);
+
+    const bizContent = {
+      out_trade_no: outTradeNo,
+      total_amount: parseFloat(amount).toFixed(2),
+      subject,
+      body,
+    };
+    // 优先用标准 buyer_id（2088 开头的 16 位），否则用 auth_token
+    if (resolvedBuyerId && /^2088\d{12,16}$/.test(resolvedBuyerId)) {
+      bizContent.buyer_id = resolvedBuyerId;
+    } else if (accessToken) {
+      bizContent.auth_token = accessToken;
+    }
 
     const result = await getAlipaySdk().exec('alipay.trade.create', {
-      bizContent: {
-        out_trade_no: outTradeNo,
-        total_amount: parseFloat(amount).toFixed(2),
-        subject,
-        body,
-        buyer_id: resolvedBuyerId,
-      },
+      bizContent,
     });
 
     const resp = result.alipay_trade_create_response || result;

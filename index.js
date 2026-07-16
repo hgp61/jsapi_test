@@ -302,11 +302,19 @@ app.get('/cashier/page-pay/:outTradeNo', async (req, res) => {
     const returnUrl = CONFIG.returnUrl || `http://localhost:${PORT}/cashier.html`;
     const notifyUrl = CONFIG.notifyUrl || `http://localhost:${PORT}/cashier/notify`;
 
+    // 根据 User-Agent 判断使用 page.pay 还是 wap.pay
+    const ua = (req.headers['user-agent'] || '').toLowerCase();
+    const isMobile = /mobile|android|iphone|ipad|ipod|alipay/i.test(ua);
+    const method = isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.page.pay';
+    const productCode = isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY';
+
+    console.log(`>>> [页面支付] 使用 ${method}, product_code: ${productCode}, UA: ${ua.slice(0, 60)}`);
+
     // alipay-sdk v3 用 pageExec 生成自动提交的 HTML 表单
-    const formHtml = getAlipaySdk().pageExec('alipay.trade.page.pay', {
+    const formHtml = getAlipaySdk().pageExec(method, {
       bizContent: {
         out_trade_no: outTradeNo,
-        product_code: 'FAST_INSTANT_TRADE_PAY', // 电脑网站支付产品码
+        product_code: productCode,
         total_amount: order.amount,
         subject: order.subject,
       },

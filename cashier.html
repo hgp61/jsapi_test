@@ -263,12 +263,12 @@ async function handlePay() {
     console.log('>>> 交易已创建:', currentOrder);
 
     // Step 2: 根据环境选择支付方式
-    if (isAlipayApp()) {
-      // 支付宝 App 内 → 使用 JSAPI 原生支付
+    if (isAlipayApp() && currentOrder.trade_no) {
+      // 支付宝 App 内且有 trade_no → 使用 JSAPI 原生支付
       btn.textContent = '唤起支付中...';
       await payViaJSAPI(currentOrder.trade_no);
     } else {
-      // 普通浏览器 → 跳转支付宝收银台
+      // 普通浏览器 / 无 buyer_id → 跳转支付宝收银台（page.pay 或 wap.pay）
       btn.textContent = '跳转支付页面...';
       payViaBrowser(currentOrder.out_trade_no);
     }

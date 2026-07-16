@@ -225,9 +225,9 @@ function isAlipayApp() {
 }
 
 /**
- * 获取支付宝用户 ID（仅支付宝 App 内有效）
+ * 获取支付宝授权码（标准 OAuth 流程）
  */
-function getAlipayUserId() {
+function getAlipayAuthCode() {
   return new Promise((resolve, reject) => {
     function ready(callback) {
       if (window.AlipayJSBridge) {
@@ -239,16 +239,18 @@ function getAlipayUserId() {
 
     ready(function() {
       try {
-        AlipayJSBridge.call('getUserInfo', function(result) {
-          console.log('>>> getUserInfo 结果:', JSON.stringify(result));
-          if (result && result.userId) {
-            resolve(result.userId);
+        AlipayJSBridge.call('getAuthCode', { scopes: 'auth_user' }, function(result) {
+          console.log('>>> getAuthCode 结果:', JSON.stringify(result));
+          if (result && result.authCode) {
+            resolve(result.authCode);
+          } else if (result && result.error) {
+            reject(new Error(result.errorMessage || '获取授权码失败: ' + result.error));
           } else {
-            reject(new Error('未获取到支付宝用户信息，请授权后重试'));
+            reject(new Error('未获取到授权码，请检查应用是否已开通「获取会员信息」权限'));
           }
         });
       } catch (e) {
-        reject(new Error('获取用户信息失败: ' + e.message));
+        reject(new Error('获取授权码失败: ' + e.message));
       }
     });
   });
@@ -278,26 +280,26 @@ async function handlePay() {
   hideStatus();
 
   try {
-    // Step 1: 获取支付宝用户 ID
-    btn.textContent = '获取用户信息...';
-    let buyerId;
+    // Step 1: 获取支付宝授权码
+    btn.textContent = '获取授权中...';
+    let authCode;
     try {
-      buyerId = await getAlipayUserId();
-      console.log('>>> 获取到 buyer_id:', buyerId);
+      authCode = await getAlipayAuthCode();
+      console.log('>>> 获取到 authCode:', authCode);
     } catch (err) {
-      console.warn('>>> 获取用户信息失败:', err.message);
-      showStatus(err.message || '获取支付宝用户信息失败', 'error');
+      console.warn('>>> 获取授权码失败:', err.message);
+      showStatus(err.message || '获取支付宝授权失败', 'error');
       btn.disabled = false;
       btn.textContent = '支 付';
       return;
     }
 
-    // Step 2: 创建 JSAPI 交易订单（传入 buyer_id）
+    // Step 2: 创建 JSAPI 交易订单（传入 auth_code，后端换取 user_id）
     btn.textContent = '创建订单中...';
     const resp = await fetch('/cashier/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, subject, buyer_id: buyerId }),
+      body: JSON.stringify({ amount, subject, auth_code: authCode }),
     });
 
     const data = await resp.json();

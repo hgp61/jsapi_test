@@ -201,9 +201,8 @@ app.post('/cashier/create', express.json(), async (req, res) => {
   });
   await saveOrders();
 
-  // 获取 buyer_id 或 auth_token（优先用传入的，否则用 auth_code 换）
+  // 获取 buyer_id（优先用传入的，否则用 auth_code 换）
   let resolvedBuyerId = buyerId;
-  let accessToken = null;
   let oauthDebug = null;
   if (!resolvedBuyerId && authCode) {
     try {
@@ -221,19 +220,21 @@ app.post('/cashier/create', express.json(), async (req, res) => {
         || oauthResult;
       console.log('>>> [OAuth] 解析后的响应:', JSON.stringify(oauthResp));
 
-      resolvedBuyerId = oauthResp.userId || oauthResp.user_id || oauthResp.alipay_user_id || oauthResp.alipayUserId || oauthResp.openId || oauthResp.openid;
-      accessToken = oauthResp.accessToken || oauthResp.access_token;
-      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}, accessToken: ${accessToken ? '有' : '无'}`);
+      // auth_base 返回 openId，应作为 buyer_open_id 使用；auth_user 返回 user_id
+      resolvedBuyerId = oauthResp.openId || oauthResp.openid
+        || oauthResp.userId || oauthResp.user_id
+        || oauthResp.alipay_user_id || oauthResp.alipayUserId;
+      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}`);
     } catch (err) {
       console.error('>>> [OAuth] 换取 token 失败:', err.message);
       return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message, debug: oauthDebug });
     }
   }
 
-  if (!resolvedBuyerId && !accessToken) {
+  if (!resolvedBuyerId) {
     return res.status(400).json({
       code: 'NO_BUYER_ID',
-      message: '缺少 buyer_id（请在支付宝 App 中打开并授权）',
+      message: '缺少买家标识（请在支付宝 App 中打开并授权）',
       debug: { oauthResult: oauthDebug },
     });
   }
@@ -246,20 +247,17 @@ app.post('/cashier/create', express.json(), async (req, res) => {
       subject,
       body,
     };
-    // 优先用标准 buyer_id（2088 开头的 16 位），否则用 auth_token
+    // 判断是标准 buyer_id (2088...) 还是 openId
     if (resolvedBuyerId && /^2088\d{12,16}$/.test(resolvedBuyerId)) {
       bizContent.buyer_id = resolvedBuyerId;
+    } else {
+      // auth_base 返回的 openId，用 buyer_open_id 传入
+      bizContent.buyer_open_id = resolvedBuyerId;
     }
 
-    const execParams = { bizContent };
-    if (accessToken) {
-      execParams.authToken = accessToken;  // alipay-sdk 自动驼峰→下划线
-    }
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, buyer_open_id: ${bizContent.buyer_open_id || '无'}`);
 
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, authToken: ${execParams.authToken ? '有' : '无'}`);
-    console.log('>>> [JSAPI] execParams:', JSON.stringify(execParams));
-
-    const result = await getAlipaySdk().exec('alipay.trade.create', execParams);
+    const result = await getAlipaySdk().exec('alipay.trade.create', { bizContent });
 
     const resp = result.alipay_trade_create_response || result;
     const tradeNo = resp.tradeNo || resp.trade_no;

@@ -172,7 +172,8 @@ app.post('/cashier/create', express.json(), async (req, res) => {
   const amount = String(req.body.amount || '').trim();
   const subject = String(req.body.subject || '收款').trim();
   const body = String(req.body.body || subject).trim();
-  const buyerId = String(req.body.buyer_id || '').trim(); // 支付宝 App 内传来的买家 user_id
+  const buyerId = String(req.body.buyer_id || '').trim();
+  const authCode = String(req.body.auth_code || '').trim();
 
   if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
     return res.status(400).json({ code: 'ERROR', message: '请输入有效金额' });
@@ -180,7 +181,7 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
   const outTradeNo = `JSAPI_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-  // 记录订单（无论哪种支付方式都先创建本地订单）
+  // 记录订单
   adminOrders.push({
     outTradeNo,
     tradeNo: '',
@@ -192,69 +193,85 @@ app.post('/cashier/create', express.json(), async (req, res) => {
   });
   await saveOrders();
 
-  // 如果有 buyer_id（支付宝 App 内），调用 alipay.trade.create
-  if (buyerId) {
+  // 获取 buyer_id（优先用传入的，否则用 auth_code 换）
+  let resolvedBuyerId = buyerId;
+  if (!resolvedBuyerId && authCode) {
     try {
-      console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer: ${buyerId}`);
-
-      const result = await getAlipaySdk().exec('alipay.trade.create', {
-        bizContent: {
-          out_trade_no: outTradeNo,
-          total_amount: parseFloat(amount).toFixed(2),
-          subject,
-          body,
-          buyer_id: buyerId,
-        },
+      console.log(`>>> [OAuth] 用 authCode 换取 user_id: ${authCode}`);
+      const oauthResult = await getAlipaySdk().exec('alipay.system.oauth.token', {
+        grantType: 'authorization_code',
+        code: authCode,
       });
-
-      const resp = result.alipay_trade_create_response || result;
-      const tradeNo = resp.tradeNo || resp.trade_no;
-
-      console.log(`>>> [JSAPI] create 响应: code=${resp.code}, msg=${resp.msg}, trade_no=${tradeNo}`);
-
-      if (resp.code === '10000' && tradeNo) {
-        // 更新订单的 tradeNo
-        const order = adminOrders.find(o => o.outTradeNo === outTradeNo);
-        if (order) order.tradeNo = tradeNo;
-        await saveOrders();
-
-        return res.json({
-          code: 'OK',
-          out_trade_no: outTradeNo,
-          trade_no: tradeNo,
-          amount,
-          subject,
-          message: '交易已创建，请完成支付',
-        });
-      } else {
-        const errDetail = JSON.stringify({
-          code: resp.code,
-          sub_code: resp.subCode || resp.sub_code,
-          sub_msg: resp.subMsg || resp.sub_msg,
-          msg: resp.msg,
-        });
-        console.error(`>>> [JSAPI] 创建交易失败: ${errDetail}`);
-        return res.status(500).json({
-          code: 'ALIPAY_ERROR',
-          message: '支付宝接口错误',
-          detail: errDetail,
-          alipay_code: resp.code,
-          alipay_sub_code: resp.subCode || resp.sub_code,
-          alipay_sub_msg: resp.subMsg || resp.sub_msg,
-          alipay_msg: resp.msg,
-        });
-      }
+      const oauthResp = oauthResult.alipay_system_oauth_token_response || oauthResult.alipaySystemOauthTokenResponse || oauthResult;
+      resolvedBuyerId = oauthResp.userId || oauthResp.user_id;
+      console.log(`>>> [OAuth] 换取成功: user_id=${resolvedBuyerId}, code=${oauthResp.code}, msg=${oauthResp.msg}`);
     } catch (err) {
-      console.error(`>>> [JSAPI] 异常:`, err.message);
-      return res.status(500).json({ code: 'ERROR', message: '支付服务异常: ' + err.message });
+      console.error('>>> [OAuth] 换取 user_id 失败:', err.message);
+      return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message });
     }
   }
 
-  // 没有 buyer_id → 必须支付宝 App 内打开
-  return res.status(400).json({
-    code: 'NO_BUYER_ID',
-    message: '请在支付宝 App 中打开此页面（需要获取用户标识）',
-  });
+  if (!resolvedBuyerId) {
+    return res.status(400).json({
+      code: 'NO_BUYER_ID',
+      message: '缺少 buyer_id（请在支付宝 App 中打开并授权）',
+    });
+  }
+
+  // 调用 alipay.trade.create
+  try {
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer: ${resolvedBuyerId}`);
+
+    const result = await getAlipaySdk().exec('alipay.trade.create', {
+      bizContent: {
+        out_trade_no: outTradeNo,
+        total_amount: parseFloat(amount).toFixed(2),
+        subject,
+        body,
+        buyer_id: resolvedBuyerId,
+      },
+    });
+
+    const resp = result.alipay_trade_create_response || result;
+    const tradeNo = resp.tradeNo || resp.trade_no;
+
+    console.log(`>>> [JSAPI] create 响应: code=${resp.code}, msg=${resp.msg}, trade_no=${tradeNo}`);
+
+    if (resp.code === '10000' && tradeNo) {
+      const order = adminOrders.find(o => o.outTradeNo === outTradeNo);
+      if (order) order.tradeNo = tradeNo;
+      await saveOrders();
+
+      return res.json({
+        code: 'OK',
+        out_trade_no: outTradeNo,
+        trade_no: tradeNo,
+        amount,
+        subject,
+        message: '交易已创建，请完成支付',
+      });
+    } else {
+      const errDetail = JSON.stringify({
+        code: resp.code,
+        sub_code: resp.subCode || resp.sub_code,
+        sub_msg: resp.subMsg || resp.sub_msg,
+        msg: resp.msg,
+      });
+      console.error(`>>> [JSAPI] 创建交易失败: ${errDetail}`);
+      return res.status(500).json({
+        code: 'ALIPAY_ERROR',
+        message: '支付宝接口错误',
+        detail: errDetail,
+        alipay_code: resp.code,
+        alipay_sub_code: resp.subCode || resp.sub_code,
+        alipay_sub_msg: resp.subMsg || resp.sub_msg,
+        alipay_msg: resp.msg,
+      });
+    }
+  } catch (err) {
+    console.error(`>>> [JSAPI] 异常:`, err.message);
+    return res.status(500).json({ code: 'ERROR', message: '支付服务异常: ' + err.message });
+  }
 });
 
 /**

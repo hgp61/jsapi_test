@@ -1,521 +1,215 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>JSAPI 收银台</title>
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: #070707;
-  color: #fff;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-}
-.container {
-  width: 100%;
-  max-width: 420px;
-  background: #0d0d0d;
-  border-radius: 16px;
-  padding: 32px 24px;
-  box-shadow: 0 4px 24px rgba(212, 175, 55, 0.1);
-  border: 1px solid rgba(212, 175, 55, 0.15);
-}
-.logo-area {
-  text-align: center;
-  margin-bottom: 28px;
-}
-.logo-area img {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  margin-bottom: 12px;
-}
-.logo-area h1 {
-  font-size: 20px;
-  font-weight: 700;
-  color: #d4af37;
-  letter-spacing: 2px;
-}
-.logo-area .subtitle {
-  font-size: 13px;
-  color: rgba(212, 175, 55, 0.6);
-  margin-top: 4px;
-}
-.amount-section {
-  margin-bottom: 24px;
-}
-.amount-label {
-  font-size: 14px;
-  color: rgba(255,255,255,0.6);
-  margin-bottom: 8px;
-}
-.amount-input-wrap {
-  display: flex;
-  align-items: center;
-  background: #1a1a1a;
-  border: 2px solid rgba(212, 175, 55, 0.2);
-  border-radius: 12px;
-  padding: 12px 16px;
-  transition: border-color 0.3s;
-}
-.amount-input-wrap:focus-within {
-  border-color: #d4af37;
-}
-.currency {
-  font-size: 24px;
-  font-weight: 700;
-  color: #d4af37;
-  margin-right: 8px;
-}
-.amount-input-wrap input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: #fff;
-  font-size: 28px;
-  font-weight: 600;
-  width: 100%;
-}
-.amount-input-wrap input::placeholder {
-  color: rgba(255,255,255,0.2);
-}
-.subject-section {
-  margin-bottom: 24px;
-}
-.subject-label {
-  font-size: 14px;
-  color: rgba(255,255,255,0.6);
-  margin-bottom: 8px;
-}
-.subject-input-wrap {
-  background: #1a1a1a;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  padding: 10px 16px;
-}
-.subject-input-wrap input {
-  width: 100%;
-  background: none;
-  border: none;
-  outline: none;
-  color: #fff;
-  font-size: 16px;
-}
-.subject-input-wrap input::placeholder {
-  color: rgba(255,255,255,0.2);
-}
-.pay-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #070707;
-  background: linear-gradient(135deg, #d4af37, #f0d060);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
-  letter-spacing: 2px;
-  transition: all 0.3s;
-  margin-bottom: 12px;
-}
-.pay-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.3);
-}
-.pay-btn:active {
-  transform: scale(0.98);
-}
-.pay-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-.pay-hint {
-  text-align: center;
-  font-size: 12px;
-  color: rgba(255,255,255,0.3);
-}
-.status-area {
-  margin-top: 20px;
-  padding: 16px;
-  border-radius: 10px;
-  background: #1a1a1a;
-  display: none;
-}
-.status-area.show { display: block; }
-.status-area .status-text {
-  font-size: 14px;
-  text-align: center;
-  color: rgba(255,255,255,0.7);
-}
-.status-area.success {
-  background: rgba(212, 175, 55, 0.1);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-}
-.status-area.success .status-text { color: #d4af37; }
-.status-area.error {
-  background: rgba(255, 77, 79, 0.1);
-  border: 1px solid rgba(255, 77, 79, 0.3);
-}
-.status-area.error .status-text { color: #ff4d4f; }
-.loading-dots { display: inline-block; }
-.loading-dots::after {
-  content: '';
-  animation: dots 1.5s steps(4, end) infinite;
-}
-@keyframes dots {
-  0% { content: ''; }
-  25% { content: '.'; }
-  50% { content: '..'; }
-  75% { content: '...'; }
-  100% { content: ''; }
-}
-</style>
-</head>
-<body>
-
-<div class="container">
-  <div class="logo-area">
-    <img src="logo-pay.png" alt="Logo" onerror="this.style.display='none'">
-    <h1>收 银 台</h1>
-    <p class="subtitle">支付宝 JSAPI 支付</p>
-  </div>
-
-  <div class="amount-section">
-    <div class="amount-label">收款金额</div>
-    <div class="amount-input-wrap">
-      <span class="currency">¥</span>
-      <input type="text" id="amountInput" placeholder="0.00" inputmode="decimal" autofocus>
-    </div>
-  </div>
-
-  <div class="subject-section">
-    <div class="subject-label">商品说明</div>
-    <div class="subject-input-wrap">
-      <input type="text" id="subjectInput" placeholder="商品或服务名称" value="商品购买">
-    </div>
-  </div>
-
-  <!-- 手动输入 buyer_id（临时快速测试用，后续接入 OAuth 后可去掉） -->
-  <div class="buyerid-section" style="margin: 0 16px 12px; text-align: left;">
-    <div class="subject-label" style="cursor:pointer; display:flex; align-items:center; gap:4px;" onclick="toggleBuyerId()">
-      <span id="buyerIdArrow" style="display:inline-block; transition: transform 0.2s; font-size:12px;">▶</span>
-      手动输入支付宝用户ID（测试用）
-    </div>
-    <div id="buyerIdWrap" style="display:none; margin-top:6px;">
-      <input type="text" id="buyerIdInput" placeholder="2088开头的支付宝用户ID" style="width:100%; padding:10px 14px; border:1px solid rgba(212,175,55,.35); border-radius:8px; background:rgba(212,175,55,.06); color:#d4af37; font-size:15px; outline:none; box-sizing:border-box;">
-      <p style="font-size:11px; color:#888; margin:4px 0 0;">支付宝App内→我的→头像→个人主页可查看</p>
-    </div>
-  </div>
-
-  <button class="pay-btn" id="payBtn" onclick="handlePay()">支 付</button>
-  <p class="pay-hint">仅支持支付宝 App 内打开</p>
-
-  <div class="status-area" id="statusArea">
-    <p class="status-text" id="statusText"></p>
-  </div>
-</div>
-
-<script>
-// ======================== 支付流程 ========================
-
-let currentOrder = null;
-let pollingTimer = null;
-
-function toggleBuyerId() {
-  const wrap = document.getElementById('buyerIdWrap');
-  const arrow = document.getElementById('buyerIdArrow');
-  if (wrap.style.display === 'none') {
-    wrap.style.display = 'block';
-    arrow.style.transform = 'rotate(90deg)';
-  } else {
-    wrap.style.display = 'none';
-    arrow.style.transform = 'rotate(0deg)';
-  }
-}
-
 /**
- * 检测是否在支付宝 App 内
+ * ============================================
+ *  JSAPI 收银台 · 支付宝小程序页面
+ * ============================================
+ *
+ * 支付流程：
+ *   1. 输入金额 → 点"立即支付"
+ *   2. my.getAuthCode() 获取用户授权码
+ *   3. 后端用 authCode 换 user_id → alipay.trade.create → tradeNO
+ *   4. my.tradePay({ tradeNO }) 唤起原生支付
+ *   5. 支付成功回调 → 显示结果
  */
-function isAlipayApp() {
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.indexOf('alipayclient') !== -1 || ua.indexOf('alipay') !== -1;
-}
 
-/**
- * 获取支付宝授权码（标准 OAuth 流程）
- */
-function getAlipayAuthCode() {
-  return new Promise((resolve, reject) => {
-    function ready(callback) {
-      if (window.AlipayJSBridge) {
-        callback();
-      } else {
-        document.addEventListener('AlipayJSBridgeReady', callback, false);
-      }
-    }
+const app = getApp();
 
-    ready(function() {
-      try {
-        AlipayJSBridge.call('getAuthCode', { scopes: ['auth_base'] }, function(result) {
-          console.log('>>> getAuthCode 结果:', JSON.stringify(result));
-          if (result && result.authCode) {
-            resolve(result.authCode);
-          } else if (result && result.error) {
-            reject(new Error(result.errorMessage || '获取授权码失败: ' + result.error));
-          } else {
-            reject(new Error('未获取到授权码，请检查应用是否已开通「获取会员信息」权限'));
-          }
-        });
-      } catch (e) {
-        reject(new Error('获取授权码失败: ' + e.message));
-      }
-    });
-  });
-}
+Page({
+  data: {
+    amount: '',
+    subject: '商品购买',
+    paying: false,
+    btnText: '',
+    statusText: '',
+    statusIcon: '',
+    statusType: '',   // success | error | info
+  },
 
-/**
- * 发起支付（仅支持支付宝 App 内 JSAPI）
- */
-async function handlePay() {
-  const amount = document.getElementById('amountInput').value.trim();
-  const subject = document.getElementById('subjectInput').value.trim() || '商品购买';
+  // ── 金额输入 ──
 
-  // 校验金额
-  if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-    showStatus('请输入有效金额', 'error');
-    return;
-  }
+  onAmountInput(e) {
+    // 只允许数字和小数点，最多两位小数
+    let val = e.detail.value;
+    val = val.replace(/[^\d.]/g, '');
+    const parts = val.split('.');
+    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+    if (parts[1] && parts[1].length > 2) val = parts[0] + '.' + parts[1].slice(0, 2);
+    this.setData({ amount: val });
+  },
 
-  // 必须支付宝 App 内打开
-  if (!isAlipayApp()) {
-    showStatus('请在支付宝 App 中打开此页面', 'error');
-    return;
-  }
+  // ── 商品说明输入 ──
 
-  const btn = document.getElementById('payBtn');
-  btn.disabled = true;
-  hideStatus();
+  onSubjectInput(e) {
+    this.setData({ subject: e.detail.value });
+  },
 
-  // 检查是否有手动输入的 buyer_id（快速测试用）
-  const manualBuyerId = document.getElementById('buyerIdInput').value.trim();
+  // ── 发起支付 ──
 
-  try {
-    let requestBody = { amount, subject };
+  async handlePay() {
+    const amount = (this.data.amount || '').trim();
+    const subject = (this.data.subject || '商品购买').trim();
 
-    if (manualBuyerId) {
-      // 手动输入了 buyer_id，跳过 OAuth 直接创建交易
-      btn.textContent = '创建订单中...';
-      requestBody.buyer_id = manualBuyerId;
-    } else {
-      // 自动获取授权码
-      btn.textContent = '获取授权中...';
-      let authCode;
-      try {
-        authCode = await getAlipayAuthCode();
-        console.log('>>> 获取到 authCode:', authCode);
-      } catch (err) {
-        console.warn('>>> 获取授权码失败:', err.message);
-        showStatus(err.message || '获取支付宝授权失败（可尝试展开上方手动输入用户ID）', 'error');
-        btn.disabled = false;
-        btn.textContent = '支 付';
-        return;
-      }
-      btn.textContent = '创建订单中...';
-      requestBody.auth_code = authCode;
-    }
-
-    const resp = await fetch('/cashier/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    const data = await resp.json();
-
-    if (data.code !== 'OK') {
-      const msg = data.alipay_sub_msg || data.message || '创建订单失败';
-      showStatus(msg, 'error');
-      btn.disabled = false;
-      btn.textContent = '支 付';
+    // 校验金额
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      my.showToast({ content: '请输入有效金额', type: 'fail', duration: 2000 });
       return;
     }
 
-    currentOrder = data;
-    console.log('>>> 交易已创建:', currentOrder);
-
-    // Step 3: JSAPI 唤起支付
-    btn.textContent = '唤起支付中...';
-    await payViaJSAPI(currentOrder.trade_no);
-
-  } catch (err) {
-    console.error('支付异常:', err);
-    showStatus('支付服务异常: ' + err.message, 'error');
-    btn.disabled = false;
-    btn.textContent = '支 付';
-  }
-}
-
-/**
- * JSAPI 原生支付（支付宝 App 内）
- */
-async function payViaJSAPI(tradeNO) {
-  // 等待 AlipayJSBridge 就绪
-  function ready(callback) {
-    if (window.AlipayJSBridge) {
-      callback && callback();
-    } else {
-      document.addEventListener('AlipayJSBridgeReady', callback, false);
-    }
-  }
-
-  ready(function() {
-    AlipayJSBridge.call('tradePay', {
-      tradeNO: tradeNO,
-    }, function(result) {
-      console.log('>>> JSAPI 支付结果:', JSON.stringify(result));
-
-      const btn = document.getElementById('payBtn');
-
-      if (result.resultCode === '9000') {
-        // 支付成功
-        showStatus('支付成功！¥' + currentOrder.amount, 'success');
-        btn.textContent = '支付成功';
-        btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
-
-        // 确认订单状态
-        updateOrderStatus(currentOrder.out_trade_no);
-      } else if (result.resultCode === '8000') {
-        // 正在处理中，轮询确认
-        showStatus('支付处理中，请稍候...', '');
-        btn.textContent = '处理中...';
-        startPolling(currentOrder.out_trade_no);
-      } else if (result.resultCode === '6001') {
-        // 用户取消
-        showStatus('已取消支付', 'error');
-        btn.disabled = false;
-        btn.textContent = '支 付';
-      } else {
-        // 支付失败
-        showStatus('支付失败: ' + (result.memo || '未知错误'), 'error');
-        btn.disabled = false;
-        btn.textContent = '重 试';
-      }
+    this.setData({
+      paying: true,
+      btnText: '获取授权中...',
+      statusText: '',
+      statusIcon: '',
+      statusType: '',
     });
-  });
-}
 
-/**
- * 轮询查询支付状态
- */
-function startPolling(outTradeNo) {
-  if (pollingTimer) clearInterval(pollingTimer);
-
-  let count = 0;
-  const maxCount = 60; // 最多轮询 2 分钟
-
-  pollingTimer = setInterval(async () => {
-    count++;
+    let authCode;
     try {
-      const resp = await fetch('/cashier/check?out_trade_no=' + outTradeNo);
-      const data = await resp.json();
+      // ═══ Step 1: 获取授权码 ═══
+      authCode = await this.getAuthCode();
+      console.log('[收银台] 获取 authCode 成功');
 
-      if (data.code === 'OK' && data.status === 'paid') {
-        clearInterval(pollingTimer);
-        pollingTimer = null;
-        showStatus('支付成功！¥' + currentOrder.amount, 'success');
-        const btn = document.getElementById('payBtn');
-        btn.textContent = '支付成功';
-        btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
-        btn.disabled = true;
+      // ═══ Step 2: 后端创建交易 ═══
+      this.setData({ btnText: '创建订单中...' });
+
+      const createResp = await this.request('/cashier/create', {
+        amount,
+        subject,
+        auth_code: authCode,
+      });
+
+      if (createResp.code !== 'OK') {
+        throw new Error(createResp.message || '创建订单失败');
       }
+
+      const tradeNO = createResp.trade_no;
+      console.log('[收银台] 交易创建成功, tradeNO:', tradeNO);
+
+      // ═══ Step 3: 唤起原生支付 ═══
+      this.setData({ btnText: '唤起支付...' });
+
+      const payResult = await this.tradePay(tradeNO);
+      console.log('[收银台] 支付结果:', JSON.stringify(payResult));
+
+      // ═══ Step 4: 处理结果 ═══
+      if (payResult.resultCode === '9000') {
+        // 9000 = 支付成功
+        this.setData({
+          paying: false,
+          btnText: '',
+          statusText: `支付成功！¥${parseFloat(amount).toFixed(2)}`,
+          statusIcon: '✓',
+          statusType: 'success',
+        });
+        my.vibrate({ type: 'medium' });
+      } else if (payResult.resultCode === '8000') {
+        // 8000 = 正在处理中（结果未知，需查询）
+        this.setData({
+          paying: false,
+          btnText: '',
+          statusText: '支付处理中，请稍后查看结果',
+          statusIcon: '⏳',
+          statusType: 'info',
+        });
+      } else {
+        // 其他 = 支付失败 / 用户取消
+        const errMap = {
+          '6001': '用户取消支付',
+          '6002': '网络连接失败',
+          '6004': '支付结果未知',
+        };
+        const msg = errMap[payResult.resultCode] || `支付失败 (${payResult.resultCode})`;
+        this.setData({
+          paying: false,
+          btnText: '',
+          statusText: msg,
+          statusIcon: '✗',
+          statusType: 'error',
+        });
+      }
+
     } catch (err) {
-      console.error('轮询失败:', err);
+      console.error('[收银台] 支付异常:', err);
+      my.showToast({
+        content: err.message || '支付服务异常',
+        type: 'fail',
+        duration: 3000,
+      });
+      this.setData({
+        paying: false,
+        btnText: '',
+        statusText: err.message || '支付失败',
+        statusIcon: '✗',
+        statusType: 'error',
+      });
     }
+  },
 
-    if (count >= maxCount) {
-      clearInterval(pollingTimer);
-      pollingTimer = null;
-      showStatus('支付超时，请确认是否已完成支付', 'error');
-      document.getElementById('payBtn').disabled = false;
-      document.getElementById('payBtn').textContent = '重 试';
-    }
-  }, 2000);
-}
+  // ── 获取授权码 ──
 
-/**
- * 更新订单状态（单次查询）
- */
-async function updateOrderStatus(outTradeNo) {
-  try {
-    const resp = await fetch('/cashier/check?out_trade_no=' + outTradeNo);
-    const data = await resp.json();
-    if (data.code === 'OK' && data.status === 'paid') {
-      showStatus('支付成功！¥' + currentOrder.amount, 'success');
-      const btn = document.getElementById('payBtn');
-      btn.textContent = '支付成功';
-      btn.style.background = 'linear-gradient(135deg, #52c41a, #73d13d)';
-      btn.disabled = true;
-    }
-  } catch (err) {}
-}
+  getAuthCode() {
+    return new Promise((resolve, reject) => {
+      my.getAuthCode({
+        scopes: ['auth_user'],
+        success: (res) => {
+          if (res.authCode) {
+            resolve(res.authCode);
+          } else {
+            reject(new Error('未获取到授权码'));
+          }
+        },
+        fail: (err) => {
+          console.error('[收银台] getAuthCode 失败:', JSON.stringify(err));
+          reject(new Error(err.errorMessage || '获取支付宝授权失败'));
+        },
+      });
+    });
+  },
 
-/**
- * 显示状态信息
- */
-function showStatus(text, type) {
-  const area = document.getElementById('statusArea');
-  const txt = document.getElementById('statusText');
-  area.className = 'status-area show ' + (type || '');
-  txt.textContent = text;
-}
+  // ── 发起交易创建请求 ──
 
-function hideStatus() {
-  const area = document.getElementById('statusArea');
-  area.className = 'status-area';
-}
+  request(path, data) {
+    const url = app.globalData.apiBase + path;
+    const bodyStr = JSON.stringify(data);
+    console.log('[收银台] request ->', url, 'body:', bodyStr);
+    return new Promise((resolve, reject) => {
+      my.request({
+        url,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data,
+        timeout: 20000,
+        success: (res) => {
+          console.log('[收银台] request success, status:', res.status, 'data:', JSON.stringify(res.data));
+          if (res.status === 200) {
+            resolve(res.data);
+          } else {
+            const msg = (res.data && res.data.message) || (res.data && res.data.msg) || `服务器错误 (${res.status})`;
+            reject(new Error(msg));
+          }
+        },
+        fail: (err) => {
+          console.error('[收银台] request fail:', JSON.stringify(err));
+          const msg = err.errorMessage || err.error || '网络请求失败，请检查网络';
+          reject(new Error(msg));
+        },
+      });
+    });
+  },
 
-// ======================== 页面初始化 ========================
+  // ── 唤起支付 ──
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 金额输入只允许数字和小数点
-  const amountInput = document.getElementById('amountInput');
-  amountInput.addEventListener('input', (e) => {
-    let val = e.target.value.replace(/[^\d.]/g, '');
-    // 只允许一个小数点
-    const parts = val.split('.');
-    if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
-    // 最多两位小数
-    if (parts.length === 2 && parts[1].length > 2) {
-      val = parts[0] + '.' + parts[1].slice(0, 2);
-    }
-    e.target.value = val;
-  });
-
-  // 回车键触发支付
-  amountInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handlePay();
-  });
-
-  document.getElementById('subjectInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handlePay();
-  });
-
-  // 检测环境
-  if (isAlipayApp()) {
-    console.log('>>> 检测到支付宝 App 环境，将使用 JSAPI 原生支付');
-  } else {
-    console.log('>>> 非支付宝环境，请用支付宝 App 扫码打开');
-    showStatus('请在支付宝 App 中打开此页面', 'error');
-  }
+  tradePay(tradeNO) {
+    return new Promise((resolve, reject) => {
+      my.tradePay({
+        tradeNO,
+        success: (res) => {
+          resolve(res);
+        },
+        fail: (err) => {
+          console.error('[收银台] tradePay 失败:', JSON.stringify(err));
+          reject(new Error(err.errorMessage || '唤起支付失败'));
+        },
+      });
+    });
+  },
 });
-</script>
-
-</body>
-</html>

@@ -253,10 +253,11 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
     const execParams = { bizContent };
     if (accessToken) {
-      execParams.auth_token = accessToken;
+      execParams.authToken = accessToken;  // alipay-sdk 自动驼峰→下划线
     }
 
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${execParams.auth_token ? '有' : '无'}`);
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, authToken: ${execParams.authToken ? '有' : '无'}`);
+    console.log('>>> [JSAPI] execParams:', JSON.stringify(execParams));
 
     const result = await getAlipaySdk().exec('alipay.trade.create', execParams);
 

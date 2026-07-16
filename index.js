@@ -240,8 +240,6 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
   // 调用 alipay.trade.create
   try {
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${bizContent.auth_token ? '有' : '无'}`);
-
     const bizContent = {
       out_trade_no: outTradeNo,
       total_amount: parseFloat(amount).toFixed(2),
@@ -254,6 +252,8 @@ app.post('/cashier/create', express.json(), async (req, res) => {
     } else if (accessToken) {
       bizContent.auth_token = accessToken;
     }
+
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, auth_token: ${bizContent.auth_token ? '有' : '无'}`);
 
     const result = await getAlipaySdk().exec('alipay.trade.create', {
       bizContent,

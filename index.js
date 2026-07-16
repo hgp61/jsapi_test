@@ -250,83 +250,11 @@ app.post('/cashier/create', express.json(), async (req, res) => {
     }
   }
 
-  // 没有 buyer_id（浏览器环境），直接走 page-pay 跳转
-  console.log(`>>> [页面支付] 浏览器环境，订单: ${outTradeNo}, 金额: ¥${amount}`);
-  return res.json({
-    code: 'OK',
-    out_trade_no: outTradeNo,
-    trade_no: '',           // 页面支付没有 trade_no，跳转时生成
-    amount,
-    subject,
-    mode: 'page_pay',       // 标识走页面支付
-    message: '即将跳转支付宝收银台',
+  // 没有 buyer_id → 必须支付宝 App 内打开
+  return res.status(400).json({
+    code: 'NO_BUYER_ID',
+    message: '请在支付宝 App 中打开此页面（需要获取用户标识）',
   });
-});
-
-/**
- * GET /cashier/page-pay/:outTradeNo — 浏览器兜底支付页面
- *
- * 当收银台不在支付宝 App 内打开时，不能使用 JSAPI，
- * 此时调用 alipay.trade.page.pay 生成跳转支付宝收银台的 HTML 表单。
- */
-app.get('/cashier/page-pay/:outTradeNo', async (req, res) => {
-  const outTradeNo = (req.params.outTradeNo || '').trim();
-  if (!outTradeNo) {
-    return res.status(400).send('缺少订单号');
-  }
-
-  const order = adminOrders.find(o => o.outTradeNo === outTradeNo);
-  if (!order) {
-    return res.status(404).send('订单不存在');
-  }
-
-  if (order.status === 'paid') {
-    return res.send(`
-      <html><head><meta charset="utf-8"><title>支付结果</title>
-      <style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#f5f5f5}
-      .card{background:#fff;padding:40px;border-radius:12px;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.08)}
-      .icon{font-size:64px;margin-bottom:16px}.success{color:#52c41a}.title{font-size:20px;font-weight:600;margin-bottom:8px}
-      .amount{font-size:32px;color:#d4af37;font-weight:700;margin-bottom:16px}
-      </style></head><body>
-      <div class="card"><div class="icon success">&#10003;</div>
-      <div class="title">该订单已支付</div>
-      <div class="amount">¥${order.amount}</div>
-      <p>交易号：${order.tradeNo || ''}</p></div></body></html>
-    `);
-  }
-
-  try {
-    console.log(`>>> [页面支付] 生成收银台页面: ${outTradeNo}`);
-
-    // 构建页面支付参数
-    const returnUrl = CONFIG.returnUrl || `http://localhost:${PORT}/cashier.html`;
-    const notifyUrl = CONFIG.notifyUrl || `http://localhost:${PORT}/cashier/notify`;
-
-    // 根据 User-Agent 判断使用 page.pay 还是 wap.pay
-    const ua = (req.headers['user-agent'] || '').toLowerCase();
-    const isMobile = /mobile|android|iphone|ipad|ipod|alipay/i.test(ua);
-    const method = isMobile ? 'alipay.trade.wap.pay' : 'alipay.trade.page.pay';
-    const productCode = isMobile ? 'QUICK_WAP_WAY' : 'FAST_INSTANT_TRADE_PAY';
-
-    console.log(`>>> [页面支付] 使用 ${method}, product_code: ${productCode}, UA: ${ua.slice(0, 60)}`);
-
-    // alipay-sdk v3 用 pageExec 生成自动提交的 HTML 表单
-    const formHtml = getAlipaySdk().pageExec(method, {
-      bizContent: {
-        out_trade_no: outTradeNo,
-        product_code: productCode,
-        total_amount: order.amount,
-        subject: order.subject,
-      },
-      returnUrl,
-      notifyUrl,
-    });
-
-    res.send(formHtml);
-  } catch (err) {
-    console.error(`>>> [页面支付] 异常:`, err.message);
-    res.status(500).send('生成支付页面失败: ' + err.message);
-  }
 });
 
 /**

@@ -203,7 +203,7 @@ body {
   </div>
 
   <button class="pay-btn" id="payBtn" onclick="handlePay()">支 付</button>
-  <p class="pay-hint">基于支付宝 JSAPI 支付</p>
+  <p class="pay-hint">仅支持支付宝 App 内打开</p>
 
   <div class="status-area" id="statusArea">
     <p class="status-text" id="statusText"></p>
@@ -225,7 +225,37 @@ function isAlipayApp() {
 }
 
 /**
- * 发起支付
+ * 获取支付宝用户 ID（仅支付宝 App 内有效）
+ */
+function getAlipayUserId() {
+  return new Promise((resolve, reject) => {
+    function ready(callback) {
+      if (window.AlipayJSBridge) {
+        callback();
+      } else {
+        document.addEventListener('AlipayJSBridgeReady', callback, false);
+      }
+    }
+
+    ready(function() {
+      try {
+        AlipayJSBridge.call('getUserInfo', function(result) {
+          console.log('>>> getUserInfo 结果:', JSON.stringify(result));
+          if (result && result.userId) {
+            resolve(result.userId);
+          } else {
+            reject(new Error('未获取到支付宝用户信息，请授权后重试'));
+          }
+        });
+      } catch (e) {
+        reject(new Error('获取用户信息失败: ' + e.message));
+      }
+    });
+  });
+}
+
+/**
+ * 发起支付（仅支持支付宝 App 内 JSAPI）
  */
 async function handlePay() {
   const amount = document.getElementById('amountInput').value.trim();
@@ -237,23 +267,44 @@ async function handlePay() {
     return;
   }
 
+  // 必须支付宝 App 内打开
+  if (!isAlipayApp()) {
+    showStatus('请在支付宝 App 中打开此页面', 'error');
+    return;
+  }
+
   const btn = document.getElementById('payBtn');
   btn.disabled = true;
-  btn.textContent = '创建订单中...';
   hideStatus();
 
   try {
-    // Step 1: 创建 JSAPI 交易订单
+    // Step 1: 获取支付宝用户 ID
+    btn.textContent = '获取用户信息...';
+    let buyerId;
+    try {
+      buyerId = await getAlipayUserId();
+      console.log('>>> 获取到 buyer_id:', buyerId);
+    } catch (err) {
+      console.warn('>>> 获取用户信息失败:', err.message);
+      showStatus(err.message || '获取支付宝用户信息失败', 'error');
+      btn.disabled = false;
+      btn.textContent = '支 付';
+      return;
+    }
+
+    // Step 2: 创建 JSAPI 交易订单（传入 buyer_id）
+    btn.textContent = '创建订单中...';
     const resp = await fetch('/cashier/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount, subject }),
+      body: JSON.stringify({ amount, subject, buyer_id: buyerId }),
     });
 
     const data = await resp.json();
 
     if (data.code !== 'OK') {
-      showStatus(data.message || '创建订单失败', 'error');
+      const msg = data.alipay_sub_msg || data.message || '创建订单失败';
+      showStatus(msg, 'error');
       btn.disabled = false;
       btn.textContent = '支 付';
       return;
@@ -262,16 +313,9 @@ async function handlePay() {
     currentOrder = data;
     console.log('>>> 交易已创建:', currentOrder);
 
-    // Step 2: 根据环境选择支付方式
-    if (isAlipayApp() && currentOrder.trade_no) {
-      // 支付宝 App 内且有 trade_no → 使用 JSAPI 原生支付
-      btn.textContent = '唤起支付中...';
-      await payViaJSAPI(currentOrder.trade_no);
-    } else {
-      // 普通浏览器 / 无 buyer_id → 跳转支付宝收银台（page.pay 或 wap.pay）
-      btn.textContent = '跳转支付页面...';
-      payViaBrowser(currentOrder.out_trade_no);
-    }
+    // Step 3: JSAPI 唤起支付
+    btn.textContent = '唤起支付中...';
+    await payViaJSAPI(currentOrder.trade_no);
 
   } catch (err) {
     console.error('支付异常:', err);
@@ -328,14 +372,6 @@ async function payViaJSAPI(tradeNO) {
       }
     });
   });
-}
-
-/**
- * 浏览器跳转支付（跳转支付宝收银台）
- */
-function payViaBrowser(outTradeNo) {
-  // 跳转到后端生成的支付宝收银台页面
-  window.location.href = '/cashier/page-pay/' + outTradeNo;
 }
 
 /**
@@ -438,7 +474,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (isAlipayApp()) {
     console.log('>>> 检测到支付宝 App 环境，将使用 JSAPI 原生支付');
   } else {
-    console.log('>>> 浏览器环境，将使用跳转支付');
+    console.log('>>> 非支付宝环境，请用支付宝 App 扫码打开');
+    showStatus('请在支付宝 App 中打开此页面', 'error');
   }
 });
 </script>

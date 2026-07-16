@@ -39,6 +39,11 @@ const PORT = process.env.PORT || 3001;
 // 静态文件服务
 app.use(express.static(__dirname));
 
+// 根路径重定向到收银台
+app.get('/', (req, res) => {
+  res.redirect('/cashier.html');
+});
+
 // ======================== 【配置区 — 请填入你的支付宝信息】 ========================
 
 const CONFIG = {

@@ -396,7 +396,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     code: 'OK',
     data: {
-      merchantName: CONFIG.merchantName || 'JSAPI 收银台',
+      merchantName: CONFIG.merchantName || '支付宝商户',
       enabled: true,
     },
   });

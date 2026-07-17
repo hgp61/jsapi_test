@@ -67,6 +67,9 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAubDn2gdgvtZLrV6bogJgoW+04xKBPfmqXcoq
 
     // 支付宝网关
     gateway: 'https://openapi.alipay.com/gateway.do',
+
+    // 卖家支付宝账号（2088 开头），留空则默认用当前应用所属账号收款
+    sellerId: '',
   },
 
   // 商户名称
@@ -203,42 +206,66 @@ app.post('/cashier/create', express.json(), async (req, res) => {
 
   // 获取 buyer_id（优先用传入的，否则用 auth_code 换）
   let resolvedBuyerId = buyerId;
+  let oauthDebug = null;
   if (!resolvedBuyerId && authCode) {
     try {
-      console.log(`>>> [OAuth] 用 authCode 换取 user_id: ${authCode}`);
+      console.log(`>>> [OAuth] 用 authCode 换取 token: ${authCode}`);
       const oauthResult = await getAlipaySdk().exec('alipay.system.oauth.token', {
-        grantType: 'authorization_code',
+        grant_type: 'authorization_code',
         code: authCode,
       });
-      const oauthResp = oauthResult.alipay_system_oauth_token_response || oauthResult.alipaySystemOauthTokenResponse || oauthResult;
-      resolvedBuyerId = oauthResp.userId || oauthResp.user_id;
-      console.log(`>>> [OAuth] 换取成功: user_id=${resolvedBuyerId}, code=${oauthResp.code}, msg=${oauthResp.msg}`);
+      oauthDebug = JSON.stringify(oauthResult);
+      console.log('>>> [OAuth] 原始响应:', oauthDebug);
+
+      const oauthResp = oauthResult.alipay_system_oauth_token_response
+        || oauthResult.alipaySystemOauthTokenResponse
+        || oauthResult.response
+        || oauthResult;
+      console.log('>>> [OAuth] 解析后的响应:', JSON.stringify(oauthResp));
+
+      // auth_base 返回 openId，应作为 buyer_open_id 使用；auth_user 返回 user_id
+      resolvedBuyerId = oauthResp.openId || oauthResp.openid
+        || oauthResp.userId || oauthResp.user_id
+        || oauthResp.alipay_user_id || oauthResp.alipayUserId;
+      console.log(`>>> [OAuth] resolvedBuyerId: ${resolvedBuyerId}`);
     } catch (err) {
-      console.error('>>> [OAuth] 换取 user_id 失败:', err.message);
-      return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message });
+      console.error('>>> [OAuth] 换取 token 失败:', err.message);
+      return res.status(500).json({ code: 'OAUTH_ERROR', message: '授权信息换取失败: ' + err.message, debug: oauthDebug });
     }
   }
 
   if (!resolvedBuyerId) {
     return res.status(400).json({
       code: 'NO_BUYER_ID',
-      message: '缺少 buyer_id（请在支付宝 App 中打开并授权）',
+      message: '缺少买家标识（请在支付宝 App 中打开并授权）',
+      debug: { oauthResult: oauthDebug },
     });
   }
 
   // 调用 alipay.trade.create
   try {
-    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer: ${resolvedBuyerId}`);
+    const bizContent = {
+      out_trade_no: outTradeNo,
+      total_amount: parseFloat(amount).toFixed(2),
+      subject,
+      body,
+    };
+    // 判断是标准 buyer_id (2088...) 还是 openId
+    if (resolvedBuyerId && /^2088\d{12,16}$/.test(resolvedBuyerId)) {
+      bizContent.buyer_id = resolvedBuyerId;
+    } else {
+      // auth_base 返回的 openId，用 buyer_open_id 传入
+      bizContent.buyer_open_id = resolvedBuyerId;
+    }
 
-    const result = await getAlipaySdk().exec('alipay.trade.create', {
-      bizContent: {
-        out_trade_no: outTradeNo,
-        total_amount: parseFloat(amount).toFixed(2),
-        subject,
-        body,
-        buyer_id: resolvedBuyerId,
-      },
-    });
+    // 如果配置了 sellerId，指定收款方（避免买家和卖家同一账号时无法测试）
+    if (CONFIG.alipay.sellerId) {
+      bizContent.seller_id = CONFIG.alipay.sellerId;
+    }
+
+    console.log(`>>> [JSAPI] 创建交易: ${outTradeNo}, 金额: ¥${amount}, buyer_id: ${bizContent.buyer_id || '无'}, buyer_open_id: ${bizContent.buyer_open_id || '无'}, seller_id: ${bizContent.seller_id || '默认'}`);
+
+    const result = await getAlipaySdk().exec('alipay.trade.create', { bizContent });
 
     const resp = result.alipay_trade_create_response || result;
     const tradeNo = resp.tradeNo || resp.trade_no;
@@ -360,6 +387,19 @@ app.post('/cashier/notify', express.urlencoded({ extended: false }), async (req,
 });
 
 // ======================== 【管理后台 API】 ========================
+
+/**
+ * GET /api/config — 获取商户配置（品牌名等）
+ */
+app.get('/api/config', (req, res) => {
+  res.json({
+    code: 'OK',
+    data: {
+      merchantName: CONFIG.merchantName || '支付宝商户',
+      enabled: true,
+    },
+  });
+});
 
 /**
  * GET /api/orders — 获取所有订单
